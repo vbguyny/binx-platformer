@@ -125,7 +125,7 @@
     <section class="hud">
       <div class="hud-row">
         <div>
-          <strong>Binx vs. Toby</strong> — Move: <kbd>Left/Right Arrows</kbd> or <kbd>A/D</kbd>, Jump: <kbd>Space/W/Up Arrow</kbd>, Hide: <kbd>E</kbd> or <kbd>Shift</kbd>
+          <strong>Binx vs. Toby</strong> — Move: <kbd>Left/Right Arrows</kbd> or <kbd>A/D</kbd>, Jump: <kbd>Space/W/Up Arrow</kbd>, Hide: <kbd>E</kbd> or <kbd>Shift</kbd>, Win: <kbd>Reach Safe Window</kbd> or <kbd>Survive 40s</kbd>
         </div>
         <button id="restartBtn" type="button">Restart</button>
       </div>
@@ -267,7 +267,7 @@
 
       if (gameState === "playing") {
         const areaHint = inHideSpot() ? " (You can hide here)" : "";
-        statusValue.textContent = `Avoid Toby, hide in dark spots, and reach the safe window.${areaHint}`;
+        statusValue.textContent = `Avoid Toby, hide in dark spots, and reach the safe window or survive 40s.${areaHint}`;
         statusValue.className = "status";
       } else if (gameState === "lose") {
         statusValue.textContent = "Caught by Toby! Restart and try another route.";
@@ -318,6 +318,7 @@
       player.onGround = false;
 
       for (const p of platforms) {
+        // Compare against previous-frame feet position to resolve top-face landings only.
         const wasAbove = player.y + player.h - player.vy <= p.y;
         const overlapsX = player.x + player.w > p.x && player.x < p.x + p.w;
         if (overlapsX && wasAbove && player.y + player.h >= p.y && player.y + player.h <= p.y + PHYSICS.platformLandingTolerance) {
@@ -499,7 +500,6 @@
       btn.addEventListener("pointerdown", () => setState(true));
       btn.addEventListener("pointerup", () => setState(false));
       btn.addEventListener("pointercancel", () => setState(false));
-      btn.addEventListener("pointerleave", () => setState(false));
     }
 
     document.addEventListener("keydown", (event) => {
@@ -531,7 +531,7 @@
       jumpBtn.classList.add("active");
     });
     jumpBtn.addEventListener("pointerup", () => jumpBtn.classList.remove("active"));
-    jumpBtn.addEventListener("pointerleave", () => jumpBtn.classList.remove("active"));
+    jumpBtn.addEventListener("pointercancel", () => jumpBtn.classList.remove("active"));
 
     hideBtn.addEventListener("click", () => {
       hideBtn.classList.add("active");
