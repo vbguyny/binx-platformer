@@ -163,14 +163,19 @@
 
     const PHYSICS = {
       gravityAcceleration: 0.65,
-      jumpStrength: 11.5
+      jumpStrength: 11.5,
+      terminalVelocity: 15,
+      platformLandingTolerance: 24
     };
     const TOBY = {
       chaseMultiplier: 1.15,
+      chaseActivationDistance: 170,
       sightOffsetX: 80,
       sightOffsetY: 55,
       sightWidth: 200,
-      sightHeight: 90
+      sightHeight: 90,
+      touchPaddingX: 10,
+      touchPaddingY: 12
     };
     const VISUALS = {
       hiddenOpacity: 0.45
@@ -304,7 +309,7 @@
       keys.jumpQueued = false;
 
       player.vy += WORLD.gravity;
-      player.vy = Math.min(player.vy, 15);
+      player.vy = Math.min(player.vy, PHYSICS.terminalVelocity);
 
       player.x += player.vx;
       player.x = clamp(player.x, 0, WORLD.width - player.w);
@@ -315,7 +320,7 @@
       for (const p of platforms) {
         const wasAbove = player.y + player.h - player.vy <= p.y;
         const overlapsX = player.x + player.w > p.x && player.x < p.x + p.w;
-        if (overlapsX && wasAbove && player.y + player.h >= p.y && player.y + player.h <= p.y + 24) {
+        if (overlapsX && wasAbove && player.y + player.h >= p.y && player.y + player.h <= p.y + PHYSICS.platformLandingTolerance) {
           player.y = p.y - player.h;
           player.vy = 0;
           player.onGround = true;
@@ -327,7 +332,7 @@
       }
 
       // Toby patrols and occasionally speeds up near Binx.
-      const closeToBinx = Math.abs((toby.x + toby.w / 2) - (player.x + player.w / 2)) < 170;
+      const closeToBinx = Math.abs((toby.x + toby.w / 2) - (player.x + player.w / 2)) < TOBY.chaseActivationDistance;
       toby.x += toby.vx * (closeToBinx ? TOBY.chaseMultiplier : 1);
       if (toby.x < toby.leftLimit || toby.x + toby.w > toby.rightLimit) {
         toby.vx *= -1;
@@ -340,10 +345,10 @@
         h: TOBY.sightHeight
       };
       const tobyTouchRange = {
-        x: toby.x - 10,
-        y: toby.y - 12,
-        w: toby.w + 20,
-        h: toby.h + 20
+        x: toby.x - TOBY.touchPaddingX,
+        y: toby.y - TOBY.touchPaddingY,
+        w: toby.w + TOBY.touchPaddingX * 2,
+        h: toby.h + TOBY.touchPaddingY * 2
       };
 
       if (!player.isHiding && (intersects(player, tobySight) || intersects(player, tobyTouchRange))) {
