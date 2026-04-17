@@ -1,35 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Binx vs Toby</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binx Platformer</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #game { position: relative; width: 100vw; height: 100vh; background: #87CEEB; }
-        .character { position: absolute; width: 50px; height: 50px; }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #controls {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+        .button {
+            padding: 10px 15px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
-    <div id="game"></div>
+    <h1>Welcome to Binx Platformer</h1>
     <script>
-        const gameDiv = document.getElementById('game');
-        const player = document.createElement('div');
-        player.classList.add('character');
-        player.style.backgroundColor = 'red';
-        gameDiv.appendChild(player);
-        let x = 0, y = 0;
+        // Existing keyboard controls
+        document.addEventListener('keydown', function(event) {
+            switch(event.key) {
+                case 'ArrowLeft':
+                    // Move left
+                    break;
+                case 'ArrowRight':
+                    // Move right
+                    break;
+                case 'Space':
+                    // Jump
+                    break;
+            }
+        });
 
-        function updatePosition() {
-            player.style.left = x + 'px';
-            player.style.bottom = y + 'px';
+        // Mobile controls
+        function setupMobileControls() {
+            const leftButton = document.createElement('button');
+            leftButton.className = 'button';
+            leftButton.innerText = 'Left';
+            leftButton.addEventListener('touchstart', function() {
+                // Move left
+            });
+
+            const rightButton = document.createElement('button');
+            rightButton.className = 'button';
+            rightButton.innerText = 'Right';
+            rightButton.addEventListener('touchstart', function() {
+                // Move right
+            });
+
+            const jumpButton = document.createElement('button');
+            jumpButton.className = 'button';
+            jumpButton.innerText = 'Jump';
+            jumpButton.addEventListener('touchstart', function() {
+                // Jump
+            });
+
+            const controlsContainer = document.createElement('div');
+            controlsContainer.id = 'controls';
+            controlsContainer.appendChild(leftButton);
+            controlsContainer.appendChild(rightButton);
+            controlsContainer.appendChild(jumpButton);
+            document.body.appendChild(controlsContainer);
         }
 
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'ArrowRight') x += 10;
-            if (event.key === 'ArrowLeft') x -= 10;
-            if (event.key === 'ArrowUp') y += 10;
-            if (event.key === 'ArrowDown') y -= 10;
-            updatePosition();
-        });
+        setupMobileControls();
     </script>
 </body>
 </html>
