@@ -1,1 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Binx Hides from Toby</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111722;
+      --panel: #1d2736;
+      --accent: #70d6ff;
+      --danger: #ff6b6b;
+      --ok: #95f9a5;
+    }
 
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #202f46, #111722 60%);
+      color: #f2f6ff;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 12px;
+    }
+
+    .game-shell {
+      width: min(960px, 100%);
+      display: grid;
+      gap: 10px;
+    }
+
+    .hud {
+      background: rgba(11, 16, 26, 0.85);
+      border: 1px solid #3b516f;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .hud-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status {
+      font-weight: bold;
+      color: var(--accent);
+    }
+
+    .status.lose {
+      color: var(--danger);
+    }
+
+    .status.win {
+      color: var(--ok);
+    }
+
+    #restartBtn {
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 600;
+      color: #051020;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    #restartBtn:active {
+      transform: translateY(1px);
+    }
+
+    #gameCanvas {
+      width: 100%;
+      max-height: 70vh;
+      aspect-ratio: 9 / 5;
+      border-radius: 12px;
+      border: 2px solid #5e79a0;
+      background: #6883a9;
+      touch-action: none;
+      image-rendering: auto;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(54px, 1fr));
+      gap: 8px;
+    }
+
+    .controls button {
+      border: 1px solid #597498;
+      border-radius: 8px;
+      background: linear-gradient(#2a3d57, #1e2b3f);
+      color: #eef5ff;
+      padding: 12px 10px;
+      font-size: 0.98rem;
+      font-weight: 600;
+      touch-action: manipulation;
+    }
+
+    .controls button:active,
+    .controls button.active {
+      background: linear-gradient(#3f5b80, #2a3d57);
+      border-color: #89abd7;
+    }
+
+    @media (min-width: 760px) {
+      .controls {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <section class="hud">
+      <div class="hud-row">
+        <div>
+          <strong>Binx vs. Toby</strong> — Move: <kbd>Left/Right Arrows</kbd> or <kbd>A/D</kbd>, Jump: <kbd>Space/W/Up Arrow</kbd>, Hide: <kbd>E</kbd> or <kbd>Shift</kbd>, Win: <kbd>Reach Safe Window</kbd> or <kbd>Survive 40s</kbd>
+        </div>
+        <button id="restartBtn" type="button">Restart</button>
+      </div>
+      <div class="hud-row">
+        <div>Time: <span id="timeValue">0.0</span>s / 40s</div>
+        <div>Hiding: <span id="hidingValue">No</span></div>
+        <div>Status: <span id="statusValue" class="status">Stay hidden and reach the safe window!</span></div>
+      </div>
+    </section>
+
+    <canvas id="gameCanvas" width="900" height="500" aria-label="Binx platformer game"></canvas>
+
+    <section class="controls" aria-label="Mobile controls">
+      <button id="leftBtn" type="button">◀ Left</button>
+      <button id="rightBtn" type="button">Right ▶</button>
+      <button id="jumpBtn" type="button">⤒ Jump</button>
+      <button id="hideBtn" type="button">Hide</button>
+    </section>
+  </main>
+
+  <script>
+    // Simple, self-contained platformer setup.
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const statusValue = document.getElementById("statusValue");
+    const timeValue = document.getElementById("timeValue");
+    const hidingValue = document.getElementById("hidingValue");
+
+    const restartBtn = document.getElementById("restartBtn");
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+    const jumpBtn = document.getElementById("jumpBtn");
+    const hideBtn = document.getElementById("hideBtn");
+
+    const PHYSICS = {
+      gravityAcceleration: 0.65,
+      jumpStrength: 11.5,
+      terminalVelocity: 15,
+      platformLandingTolerance: 24
+    };
+    const TOBY = {
+      chaseMultiplier: 1.15,
+      chaseActivationDistance: 170,
+      sightOffsetX: 80,
+      sightOffsetY: 55,
+      sightWidth: 200,
+      sightHeight: 90,
+      touchPaddingX: 10,
+      touchPaddingY: 12
+    };
+    const VISUALS = {
+      hiddenOpacity: 0.45
+    };
+    const WORLD = { width: canvas.width, height: canvas.height, gravity: PHYSICS.gravityAcceleration };
+    const TARGET_SURVIVAL = 40;
+
+    const platforms = [
+      { x: 0, y: 460, w: 900, h: 40 },
+      { x: 110, y: 380, w: 180, h: 18 },
+      { x: 360, y: 330, w: 170, h: 18 },
+      { x: 610, y: 270, w: 150, h: 18 },
+      { x: 740, y: 190, w: 120, h: 16 }
+    ];
+
+    const hideSpots = [
+      { x: 125, y: 338, w: 95, h: 42, label: "Cardboard Box" },
+      { x: 395, y: 290, w: 95, h: 40, label: "Shadow" },
+      { x: 630, y: 228, w: 95, h: 42, label: "Laundry Pile" }
+    ];
+
+    const safeSpot = { x: 790, y: 140, w: 90, h: 50, label: "Safe Window" };
+
+    const keys = {
+      left: false,
+      right: false,
+      jumpQueued: false,
+      hidePressed: false
+    };
+
+    const player = {
+      x: 48,
+      y: 420,
+      w: 28,
+      h: 28,
+      vx: 0,
+      vy: 0,
+      speed: 2.8,
+      jumpStrength: PHYSICS.jumpStrength,
+      onGround: false,
+      facing: 1,
+      isHiding: false
+    };
+
+    const toby = {
+      x: 470,
+      y: 432,
+      w: 46,
+      h: 30,
+      vx: 1.6,
+      leftLimit: 300,
+      rightLimit: 760
+    };
+
+    let gameState = "playing"; // playing | win | lose
+    let startMs = performance.now();
+    let elapsed = 0;
+
+    function resetGame() {
+      player.x = 48;
+      player.y = 420;
+      player.vx = 0;
+      player.vy = 0;
+      player.onGround = false;
+      player.isHiding = false;
+      toby.x = 470;
+      toby.vx = 1.6;
+      gameState = "playing";
+      startMs = performance.now();
+      elapsed = 0;
+      updateHud();
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function intersects(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function inHideSpot() {
+      return hideSpots.some((spot) => intersects(player, spot));
+    }
+
+    function updateHud() {
+      timeValue.textContent = elapsed.toFixed(1);
+      hidingValue.textContent = player.isHiding ? "Yes" : "No";
+
+      if (gameState === "playing") {
+        const areaHint = inHideSpot() ? " (You can hide here)" : "";
+        statusValue.textContent = `Avoid Toby, hide in dark spots, and reach the safe window or survive 40s.${areaHint}`;
+        statusValue.className = "status";
+      } else if (gameState === "lose") {
+        statusValue.textContent = "Caught by Toby! Restart and try another route.";
+        statusValue.className = "status lose";
+      } else {
+        statusValue.textContent = "Binx escaped safely! Toby lost the trail.";
+        statusValue.className = "status win";
+      }
+    }
+
+    function queueHideToggle() {
+      if (gameState !== "playing") return;
+      if (inHideSpot()) {
+        player.isHiding = !player.isHiding;
+      } else {
+        player.isHiding = false;
+      }
+      updateHud();
+    }
+
+    function physicsStep() {
+      if (gameState !== "playing") return;
+
+      // Horizontal movement.
+      const moving = (keys.left ? -1 : 0) + (keys.right ? 1 : 0);
+      player.vx = moving * player.speed;
+      if (moving !== 0) player.facing = moving;
+
+      if (player.isHiding && moving !== 0) {
+        player.isHiding = false;
+      }
+
+      // Jump queue lets both keyboard and tap controls work consistently.
+      if (keys.jumpQueued && player.onGround) {
+        player.vy = -player.jumpStrength;
+        player.onGround = false;
+        player.isHiding = false;
+      }
+      keys.jumpQueued = false;
+
+      player.vy += WORLD.gravity;
+      player.vy = Math.min(player.vy, PHYSICS.terminalVelocity);
+
+      player.x += player.vx;
+      player.x = clamp(player.x, 0, WORLD.width - player.w);
+
+      player.y += player.vy;
+      player.onGround = false;
+
+      for (const p of platforms) {
+        // Compare against previous-frame feet position to resolve top-face landings only.
+        const wasAbove = player.y + player.h - player.vy <= p.y;
+        const overlapsX = player.x + player.w > p.x && player.x < p.x + p.w;
+        if (overlapsX && wasAbove && player.y + player.h >= p.y && player.y + player.h <= p.y + PHYSICS.platformLandingTolerance) {
+          player.y = p.y - player.h;
+          player.vy = 0;
+          player.onGround = true;
+        }
+      }
+
+      if (player.y > WORLD.height + 20) {
+        gameState = "lose";
+      }
+
+      // Toby patrols and occasionally speeds up near Binx.
+      const closeToBinx = Math.abs((toby.x + toby.w / 2) - (player.x + player.w / 2)) < TOBY.chaseActivationDistance;
+      toby.x += toby.vx * (closeToBinx ? TOBY.chaseMultiplier : 1);
+      if (toby.x < toby.leftLimit || toby.x + toby.w > toby.rightLimit) {
+        toby.vx *= -1;
+      }
+
+      const tobySight = {
+        x: Math.min(toby.x - TOBY.sightOffsetX, toby.x + toby.w),
+        y: toby.y - TOBY.sightOffsetY,
+        w: TOBY.sightWidth,
+        h: TOBY.sightHeight
+      };
+      const tobyTouchRange = {
+        x: toby.x - TOBY.touchPaddingX,
+        y: toby.y - TOBY.touchPaddingY,
+        w: toby.w + TOBY.touchPaddingX * 2,
+        h: toby.h + TOBY.touchPaddingY * 2
+      };
+
+      if (!player.isHiding && (intersects(player, tobySight) || intersects(player, tobyTouchRange))) {
+        gameState = "lose";
+      }
+
+      if (intersects(player, safeSpot) || elapsed >= TARGET_SURVIVAL) {
+        gameState = "win";
+      }
+
+      if (player.isHiding && !inHideSpot()) {
+        player.isHiding = false;
+      }
+
+      updateHud();
+    }
+
+    function drawBackground() {
+      const sky = ctx.createLinearGradient(0, 0, 0, WORLD.height);
+      sky.addColorStop(0, "#7f99bf");
+      sky.addColorStop(1, "#4a628b");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+
+      // Moon and far hills for a simple night-time atmosphere.
+      ctx.fillStyle = "#f5f2d4";
+      ctx.beginPath();
+      ctx.arc(770, 72, 28, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#3f5477";
+      ctx.fillRect(0, 402, WORLD.width, 98);
+    }
+
+    function drawPlatforms() {
+      ctx.fillStyle = "#6f7f95";
+      for (const p of platforms) {
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+      }
+
+      for (const spot of hideSpots) {
+        ctx.fillStyle = "rgba(25, 28, 35, 0.78)";
+        ctx.fillRect(spot.x, spot.y, spot.w, spot.h);
+        ctx.strokeStyle = "rgba(170, 190, 220, 0.55)";
+        ctx.strokeRect(spot.x, spot.y, spot.w, spot.h);
+      }
+
+      ctx.fillStyle = "rgba(180, 235, 255, 0.35)";
+      ctx.fillRect(safeSpot.x, safeSpot.y, safeSpot.w, safeSpot.h);
+      ctx.strokeStyle = "#d6f3ff";
+      ctx.strokeRect(safeSpot.x, safeSpot.y, safeSpot.w, safeSpot.h);
+    }
+
+    function drawBinx() {
+      const x = player.x;
+      const y = player.y;
+      const hiddenAlpha = player.isHiding ? VISUALS.hiddenOpacity : 1;
+
+      ctx.save();
+      ctx.globalAlpha = hiddenAlpha;
+      ctx.fillStyle = "#050505";
+
+      // Body
+      ctx.fillRect(x + 6, y + 10, 16, 14);
+      // Head
+      ctx.fillRect(x + 9, y + 3, 12, 10);
+      // Ears
+      ctx.beginPath();
+      ctx.moveTo(x + 9, y + 3);
+      ctx.lineTo(x + 11, y - 3);
+      ctx.lineTo(x + 14, y + 3);
+      ctx.moveTo(x + 16, y + 3);
+      ctx.lineTo(x + 19, y - 3);
+      ctx.lineTo(x + 21, y + 3);
+      ctx.fill();
+      // Tail
+      ctx.fillRect(player.facing > 0 ? x + 2 : x + 23, y + 13, 4, 10);
+
+      // Eyes
+      ctx.fillStyle = "#8fffb5";
+      ctx.fillRect(x + 11, y + 7, 2, 2);
+      ctx.fillRect(x + 17, y + 7, 2, 2);
+      ctx.restore();
+    }
+
+    function drawToby() {
+      const x = toby.x;
+      const y = toby.y;
+
+      ctx.fillStyle = "#0f0f10";
+      // Body and legs.
+      ctx.fillRect(x + 8, y + 8, 30, 16);
+      ctx.fillRect(x + 11, y + 22, 5, 8);
+      ctx.fillRect(x + 30, y + 22, 5, 8);
+      // Head + ears.
+      ctx.fillRect(x, y + 4, 14, 13);
+      ctx.beginPath();
+      ctx.moveTo(x + 2, y + 4);
+      ctx.lineTo(x + 1, y - 2);
+      ctx.lineTo(x + 5, y + 4);
+      ctx.moveTo(x + 9, y + 4);
+      ctx.lineTo(x + 12, y - 2);
+      ctx.lineTo(x + 13, y + 4);
+      ctx.fill();
+      // Tail
+      ctx.fillRect(x + 38, y + 12, 8, 4);
+
+      // Nose / eye highlight so shape is readable.
+      ctx.fillStyle = "#dfd6c2";
+      ctx.fillRect(x + 1, y + 10, 2, 2);
+      ctx.fillRect(x + 6, y + 8, 2, 2);
+    }
+
+    function drawStateOverlay() {
+      if (gameState === "playing") return;
+      ctx.fillStyle = "rgba(12, 16, 22, 0.58)";
+      ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+      ctx.fillStyle = gameState === "win" ? "#95f9a5" : "#ff9191";
+      ctx.font = "bold 40px Trebuchet MS";
+      ctx.textAlign = "center";
+      ctx.fillText(gameState === "win" ? "Binx is Safe!" : "Toby Caught Binx!", WORLD.width / 2, WORLD.height / 2 - 10);
+      ctx.fillStyle = "#f7fbff";
+      ctx.font = "20px Trebuchet MS";
+      ctx.fillText("Tap Restart to play again", WORLD.width / 2, WORLD.height / 2 + 28);
+      ctx.textAlign = "start";
+    }
+
+    function render() {
+      drawBackground();
+      drawPlatforms();
+      drawToby();
+      drawBinx();
+      drawStateOverlay();
+    }
+
+    function gameLoop(now) {
+      elapsed = (now - startMs) / 1000;
+      physicsStep();
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function setMoveButton(btn, keyName) {
+      const setState = (value) => {
+        keys[keyName] = value;
+        btn.classList.toggle("active", value);
+      };
+      btn.addEventListener("pointerdown", () => setState(true));
+      btn.addEventListener("pointerup", () => setState(false));
+      btn.addEventListener("pointercancel", () => setState(false));
+    }
+
+    document.addEventListener("keydown", (event) => {
+      const k = event.key.toLowerCase();
+      if (["arrowleft", "a"].includes(k)) keys.left = true;
+      if (["arrowright", "d"].includes(k)) keys.right = true;
+      if ([" ", "arrowup", "w"].includes(k)) {
+        keys.jumpQueued = true;
+        event.preventDefault();
+      }
+      if (["shift", "e"].includes(k) && !keys.hidePressed) {
+        keys.hidePressed = true;
+        queueHideToggle();
+      }
+    });
+
+    document.addEventListener("keyup", (event) => {
+      const k = event.key.toLowerCase();
+      if (["arrowleft", "a"].includes(k)) keys.left = false;
+      if (["arrowright", "d"].includes(k)) keys.right = false;
+      if (["shift", "e"].includes(k)) keys.hidePressed = false;
+    });
+
+    setMoveButton(leftBtn, "left");
+    setMoveButton(rightBtn, "right");
+
+    jumpBtn.addEventListener("pointerdown", () => {
+      keys.jumpQueued = true;
+      jumpBtn.classList.add("active");
+    });
+    jumpBtn.addEventListener("pointerup", () => jumpBtn.classList.remove("active"));
+    jumpBtn.addEventListener("pointercancel", () => jumpBtn.classList.remove("active"));
+
+    hideBtn.addEventListener("click", () => {
+      hideBtn.classList.add("active");
+      queueHideToggle();
+      setTimeout(() => hideBtn.classList.remove("active"), 110);
+    });
+
+    restartBtn.addEventListener("click", resetGame);
+
+    updateHud();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
