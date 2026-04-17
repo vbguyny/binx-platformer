@@ -1,82 +1,127 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Binx Platformer</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-        #controls {
-            position: fixed;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 10px;
-        }
-        .button {
-            padding: 10px 15px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Binx vs Toby</title>
+  <style>
+    :root{ --sky:#87CEEB; --btn:#0b3d91; --btn2:#072a63; --txt:#fff; }
+    html,body{height:100%; margin:0; overflow:hidden; background:var(--sky); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; touch-action:none;}
+    #game{ position:relative; width:100vw; height:100vh; background:var(--sky); }
+    .character{ position:absolute; width:50px; height:50px; background:#e74c3c; border:2px solid rgba(255,255,255,.22); box-sizing:border-box; }
+
+    /* On-screen controls (mobile) */
+    #controls{
+      position:fixed; left:0; right:0; bottom:0;
+      padding: 12px 12px 16px;
+      display:none;
+      justify-content:space-between;
+      gap:12px;
+      z-index:10;
+      pointer-events:none;
+    }
+    .padGroup{ display:flex; gap:10px; pointer-events:auto; }
+    .padBtn{
+      width:70px; height:70px;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.25);
+      background: linear-gradient(180deg, rgba(11,61,145,.85), rgba(7,42,99,.85));
+      color:var(--txt);
+      font-weight:800;
+      font-size:18px;
+      user-select:none; -webkit-user-select:none;
+      touch-action:none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 10px 20px rgba(0,0,0,.25);
+    }
+    .padBtn.wide{ width:96px; }
+    .padBtn:active, .padBtn.down{ filter: brightness(1.08); outline:2px solid rgba(255,255,255,.25); }
+
+    @media (pointer:coarse){ #controls{ display:flex; } }
+    @media (max-width:420px){
+      .padBtn{ width:62px; height:62px; border-radius:16px; font-size:16px; }
+      .padBtn.wide{ width:88px; }
+    }
+
+    /* Tiny hint */
+    #hint{ position:fixed; top:10px; left:10px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,.25); color:#fff; font-size:12px; }
+  </style>
 </head>
 <body>
-    <h1>Welcome to Binx Platformer</h1>
-    <script>
-        // Existing keyboard controls
-        document.addEventListener('keydown', function(event) {
-            switch(event.key) {
-                case 'ArrowLeft':
-                    // Move left
-                    break;
-                case 'ArrowRight':
-                    // Move right
-                    break;
-                case 'Space':
-                    // Jump
-                    break;
-            }
-        });
+  <div id="hint">Keyboard: ← → ↑ ↓ (demo). Mobile: buttons.</div>
+  <div id="game"></div>
 
-        // Mobile controls
-        function setupMobileControls() {
-            const leftButton = document.createElement('button');
-            leftButton.className = 'button';
-            leftButton.innerText = 'Left';
-            leftButton.addEventListener('touchstart', function() {
-                // Move left
-            });
+  <div id="controls" aria-label="On-screen controls">
+    <div class="padGroup">
+      <button class="padBtn" data-act="left" aria-label="Move left">◀</button>
+      <button class="padBtn" data-act="right" aria-label="Move right">▶</button>
+    </div>
+    <div class="padGroup">
+      <button class="padBtn wide" data-act="up" aria-label="Up">UP</button>
+      <button class="padBtn wide" data-act="down" aria-label="Down">DOWN</button>
+    </div>
+  </div>
 
-            const rightButton = document.createElement('button');
-            rightButton.className = 'button';
-            rightButton.innerText = 'Right';
-            rightButton.addEventListener('touchstart', function() {
-                // Move right
-            });
+  <script>
+    const gameDiv = document.getElementById('game');
+    const player = document.createElement('div');
+    player.classList.add('character');
+    gameDiv.appendChild(player);
 
-            const jumpButton = document.createElement('button');
-            jumpButton.className = 'button';
-            jumpButton.innerText = 'Jump';
-            jumpButton.addEventListener('touchstart', function() {
-                // Jump
-            });
+    let x = 10, y = 10;
 
-            const controlsContainer = document.createElement('div');
-            controlsContainer.id = 'controls';
-            controlsContainer.appendChild(leftButton);
-            controlsContainer.appendChild(rightButton);
-            controlsContainer.appendChild(jumpButton);
-            document.body.appendChild(controlsContainer);
-        }
+    const input = { left:false, right:false, up:false, down:false };
 
-        setupMobileControls();
-    </script>
+    function updatePosition(){
+      player.style.left = x + 'px';
+      player.style.top = y + 'px';
+    }
+
+    function step(){
+      const speed = 4;
+      if (input.left) x -= speed;
+      if (input.right) x += speed;
+      if (input.up) y -= speed;
+      if (input.down) y += speed;
+
+      // keep in bounds
+      const maxX = window.innerWidth - 50;
+      const maxY = window.innerHeight - 50;
+      x = Math.max(0, Math.min(maxX, x));
+      y = Math.max(0, Math.min(maxY, y));
+
+      updatePosition();
+      requestAnimationFrame(step);
+    }
+
+    // Keyboard
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'ArrowLeft') input.left = true;
+      if (e.key === 'ArrowRight') input.right = true;
+      if (e.key === 'ArrowUp') input.up = true;
+      if (e.key === 'ArrowDown') input.down = true;
+    });
+    document.addEventListener('keyup', (e)=>{
+      if (e.key === 'ArrowLeft') input.left = false;
+      if (e.key === 'ArrowRight') input.right = false;
+      if (e.key === 'ArrowUp') input.up = false;
+      if (e.key === 'ArrowDown') input.down = false;
+    });
+
+    // Mobile buttons (pointer events so it works for touch + mouse)
+    document.querySelectorAll('.padBtn').forEach(btn=>{
+      const act = btn.dataset.act;
+      const down = (ev)=>{ ev.preventDefault(); btn.classList.add('down'); input[act] = true; };
+      const up = (ev)=>{ if(ev) ev.preventDefault(); btn.classList.remove('down'); input[act] = false; };
+
+      btn.addEventListener('pointerdown', (ev)=>{ btn.setPointerCapture(ev.pointerId); down(ev); }, {passive:false});
+      btn.addEventListener('pointerup', up, {passive:false});
+      btn.addEventListener('pointercancel', up, {passive:false});
+      btn.addEventListener('pointerleave', ()=>{}, {passive:true});
+    });
+
+    updatePosition();
+    requestAnimationFrame(step);
+  </script>
 </body>
 </html>
