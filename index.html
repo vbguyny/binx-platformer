@@ -1537,9 +1537,11 @@
             }
 
             function startGame() {
-                requestFullscreenOnMobile();
                 startAudioIfNeeded();
                 restartGame();
+                // Confirm audio immediately on the same user gesture.
+                playSfx("level");
+                requestFullscreenOnMobile();
             }
 
             function togglePause() {
