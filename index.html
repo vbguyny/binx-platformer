@@ -504,6 +504,7 @@
                     master: null,
                     muted: false,
                     started: false,
+                    unlocked: false,
                     musicPhase: 0,
                     musicTimer: 0
                 }
@@ -533,24 +534,43 @@
             }
 
             function startAudioIfNeeded() {
-                if (game.audio.started) {
-                    if (game.audio.ctx && game.audio.ctx.state === "suspended") {
-                        game.audio.ctx.resume();
-                    }
-                    return;
-                }
-
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
                 if (!AudioCtx) return;
 
-                const ctxAudio = new AudioCtx();
-                const master = ctxAudio.createGain();
-                master.gain.value = game.audio.muted ? 0 : 0.14;
-                master.connect(ctxAudio.destination);
+                if (!game.audio.started || !game.audio.ctx) {
+                    const ctxAudio = new AudioCtx();
+                    const master = ctxAudio.createGain();
+                    master.gain.value = game.audio.muted ? 0 : 0.14;
+                    master.connect(ctxAudio.destination);
 
-                game.audio.ctx = ctxAudio;
-                game.audio.master = master;
-                game.audio.started = true;
+                    game.audio.ctx = ctxAudio;
+                    game.audio.master = master;
+                    game.audio.started = true;
+                }
+
+                if (game.audio.ctx && game.audio.ctx.state !== "running" && game.audio.ctx.resume) {
+                    const resumeResult = game.audio.ctx.resume();
+                    if (resumeResult && typeof resumeResult.catch === "function") {
+                        resumeResult.catch(() => {
+                            // Mobile browsers can reject resume until an eligible user gesture.
+                        });
+                    }
+                }
+
+                // Prime a near-silent blip once to reliably unlock audio on mobile browsers.
+                if (!game.audio.unlocked && game.audio.ctx && game.audio.ctx.state === "running") {
+                    const t0 = game.audio.ctx.currentTime;
+                    const osc = game.audio.ctx.createOscillator();
+                    const gain = game.audio.ctx.createGain();
+                    osc.type = "sine";
+                    osc.frequency.value = 440;
+                    gain.gain.value = 0.00001;
+                    osc.connect(gain);
+                    gain.connect(game.audio.master);
+                    osc.start(t0);
+                    osc.stop(t0 + 0.01);
+                    game.audio.unlocked = true;
+                }
             }
 
             function setMute(nextMuted) {
@@ -563,6 +583,7 @@
 
             function playTone(freq, duration, type, volume) {
                 if (!game.audio.started || game.audio.muted) return;
+                if (!game.audio.ctx || game.audio.ctx.state !== "running") return;
                 const t0 = game.audio.ctx.currentTime;
                 const osc = game.audio.ctx.createOscillator();
                 const gain = game.audio.ctx.createGain();
@@ -1488,7 +1509,35 @@
                 clearOverlays();
             }
 
+            function requestFullscreenOnMobile() {
+                const isCoarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+                const isNarrowViewport = window.innerWidth <= 900;
+                if (!isCoarsePointer && !isNarrowViewport) return;
+
+                if (document.fullscreenElement) return;
+
+                const target = document.documentElement;
+                const request =
+                    target.requestFullscreen ||
+                    target.webkitRequestFullscreen ||
+                    target.msRequestFullscreen;
+
+                if (!request) return;
+
+                try {
+                    const result = request.call(target);
+                    if (result && typeof result.catch === "function") {
+                        result.catch(() => {
+                            // Ignore fullscreen failures (for example browser/user policy).
+                        });
+                    }
+                } catch (_err) {
+                    // Ignore fullscreen failures (for example browser/user policy).
+                }
+            }
+
             function startGame() {
+                requestFullscreenOnMobile();
                 startAudioIfNeeded();
                 restartGame();
             }
@@ -1580,6 +1629,8 @@
                 window.addEventListener("keydown", onKeyDown, { passive: false });
                 window.addEventListener("keyup", onKeyUp);
                 window.addEventListener("resize", resizeCanvas);
+                window.addEventListener("pointerdown", startAudioIfNeeded, { passive: true });
+                window.addEventListener("touchstart", startAudioIfNeeded, { passive: true });
 
                 document.getElementById("startBtn").addEventListener("click", startGame);
                 document.getElementById("restartBtn").addEventListener("click", restartGame);
